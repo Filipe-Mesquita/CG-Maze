@@ -2,11 +2,11 @@
 
 ## Ideias
 
-  Colisões simples (grid-based)
-  Labirinto gerado automaticamente
-  Câmara em primeira pessoa (FPS)
-  Iluminação básica (Por enquanto)
-  Texturas
-  Modos de jogo (Fácil (labirinto pequeno), Normal (labirinto grande), Dificil(labirinto grande, modo bebado, noite com nevoa))
-  Spotlight (lanterna)
-  Som ambiente e de passos
+  - Colisões simples (grid-based)
+  - Labirinto gerado automaticamente
+  - Câmara em primeira pessoa (FPS)
+  - Iluminação básica (Por enquanto)
+  - Texturas
+  - Modos de jogo (Fácil (labirinto pequeno), Normal (labirinto grande), Dificil(labirinto grande, modo bebado, noite com nevoa))
+  - Spotlight (lanterna)
+  - Som ambiente e de passos
