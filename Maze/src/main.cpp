@@ -12,17 +12,29 @@
 
 #include <iostream>
 
+#include <ctime>
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
 
+// Gerar o labirinto
+//
+const int MAZE_W = 21;
+const int MAZE_H = 21;
+const float CELL_SIZE = 1.0f;
+
+std::vector<std::vector<int>> maze;
+
 /*--------------------------------------*/
 int transferDataToGPUMemory(void);
+void generateMaze();
+void carveMaze(int x, int z);
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1920;
+const unsigned int SCR_HEIGHT = 1080;
 
 // camera
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
@@ -99,6 +111,10 @@ int main()
     if(transferDataToGPUMemory() == -1)
         return -1;
 
+
+    srand(time(NULL));
+    generateMaze();
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -135,9 +151,31 @@ int main()
         glm::mat4 model = glm::mat4(1.0f);
         lightingShader.setMat4("model", model);
 
-        // render the cube
+        // render dos cubos
+        //
         glBindVertexArray(bush_VAO);
-        glDrawArrays(GL_TRIANGLES, 0, bush_vertices.size());
+
+        for (int z = 0; z < MAZE_H; z++)
+        {
+            for (int x = 0; x < MAZE_W; x++)
+            {
+                if (maze[z][x] == 1)   // arbusto
+                {
+                    glm::mat4 model = glm::mat4(1.0f);
+
+                    model = glm::translate(model, glm::vec3(
+                        x * CELL_SIZE,
+                        0.0f,
+                        z * CELL_SIZE
+                    ));
+
+                    model = glm::scale(model, glm::vec3(0.5f));
+
+                    lightingShader.setMat4("model", model);
+                    glDrawArrays(GL_TRIANGLES, 0, bush_vertices.size());
+                }
+            }
+        }
 
         // also draw the lamp object
         lampShader.use();
@@ -159,7 +197,6 @@ int main()
 
     // optional: de-allocate all resources once they've outlived their purpose:
     // ------------------------------------------------------------------------
-    glDeleteVertexArrays(1, &bush_VAO);
     glDeleteVertexArrays(1, &bush_VAO);
     glDeleteBuffers(1, &bush_VBO);
 
@@ -296,3 +333,71 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(yoffset);
 }
+
+// Gerar labirinto
+//
+
+void carveMaze(int x, int z)
+{
+    static int dirs[4][2] = {
+        { 1, 0 },  // direita
+        { -1, 0 }, // esquerda
+        { 0, 1 },  // baixo
+        { 0, -1 }  // cima
+    };
+
+    // baralhar direções
+    for (int i = 0; i < 4; i++)
+    {
+        int r = rand() % 4;
+        std::swap(dirs[i], dirs[r]);
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        int nx = x + dirs[i][0] * 2;
+        int nz = z + dirs[i][1] * 2;
+
+        if (nx > 0 && nz > 0 && nx < MAZE_W - 1 && nz < MAZE_H - 1)
+        {
+            if (maze[nz][nx] == 1)
+            {
+                maze[z + dirs[i][1]][x + dirs[i][0]] = 0;
+                maze[nz][nx] = 0;
+                carveMaze(nx, nz);
+            }
+        }
+    }
+}
+
+void generateMaze()
+{
+    maze.resize(MAZE_H, std::vector<int>(MAZE_W, 1));
+
+    for (int z = 0; z < MAZE_H; z++)
+        for (int x = 0; x < MAZE_W; x++)
+            maze[z][x] = 1;
+
+    maze[1][1] = 0;
+    carveMaze(1, 1);
+
+    for (int x = 0; x < MAZE_W; x++) {
+        maze[0][x] = 1;
+        maze[MAZE_H - 1][x] = 1;
+    }
+
+    for (int z = 0; z < MAZE_H; z++) {
+        maze[z][0] = 1;
+        maze[z][MAZE_W - 1] = 1;
+    }
+
+    maze[1][0] = 0;
+    maze[1][1] = 0;
+
+    int exitZ = MAZE_H - 2;
+
+    maze[exitZ][MAZE_W - 2] = 0; 
+    maze[exitZ][MAZE_W - 1] = 0; 
+}
+
+
