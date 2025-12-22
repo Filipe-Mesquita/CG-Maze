@@ -79,7 +79,7 @@ public:
 
     float velocity_mult = 2.0f;
     // Processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
-    void ProcessKeyboard(Camera_Movement direction, float deltaTime)
+    void ProcessKeyboard(Camera_Movement direction, float deltaTime, float fixY)
     {
         float velocity = MovementSpeed * deltaTime;
         if (direction == FORWARD)
@@ -96,7 +96,8 @@ public:
             Position -= WorldUp * velocity * velocity_mult;
 
         // Forces fixed Y
-        Position.y = FixedY;
+        if(fixY)
+            Position.y = FixedY;
     }
 
     // Processes input received from a mouse input system. Expects the offset value in both the x and y direction.
