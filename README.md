@@ -11,6 +11,7 @@
   - Spotlight (lanterna)
   - Som ambiente e de passos
   - Menu inicial
+  - Detetar chegada à saída (vitória)
 
 
 ## Afazeres
