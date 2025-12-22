@@ -18,7 +18,10 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
+//NEW camera functions
 void moveCamera(int direction);
+void increaseArrowSense();
+void decreaseArrowSense();
 
 // Gerar o labirinto
 //
@@ -40,7 +43,7 @@ const unsigned int SCR_HEIGHT = 1080;
 */
 
 // camera
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+Camera camera(glm::vec3(-1.5f, 0.5f, 1.0f));
 float lastX;
 float lastY;
 bool firstMouse = true;
@@ -316,6 +319,11 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
 
+    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS)
+        increaseArrowSense();
+    if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS)
+        decreaseArrowSense();
+
     /*
     1 -> cima
     2 -> baixo
@@ -340,7 +348,6 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
-
 
 // glfw: whenever the mouse moves, this callback is called
 // -------------------------------------------------------
@@ -397,6 +404,18 @@ void moveCamera(int direction)
     default:
         break;
     }
+}
+
+void increaseArrowSense()
+{
+    arrow_sense += 0.5f;
+}
+void decreaseArrowSense()
+{
+    arrow_sense -= 0.5f;
+
+    if (arrow_sense <= 0.0f)
+        arrow_sense = 0.5f;
 }
 
 // Gerar labirinto
