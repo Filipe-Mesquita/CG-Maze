@@ -18,6 +18,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
+void moveCamera(int direction);
 
 // Gerar o labirinto
 //
@@ -45,6 +46,9 @@ float lastY;
 bool firstMouse = true;
 float centerX;
 float centerY;
+
+float mouse_sense = 1.0f;
+float arrow_sense = 3.0f;
 
 // timing
 float deltaTime = 0.0f;
@@ -105,7 +109,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     // tell GLFW to capture our mouse
-    glfwSetInputMode(window, GLFW_CURSOR,  GLFW_CURSOR_HIDDEN);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
@@ -311,6 +315,21 @@ void processInput(GLFWwindow *window)
         camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
+
+    /*
+    1 -> cima
+    2 -> baixo
+    3 -> esquerda
+    4 -> direita
+    */
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+        moveCamera(1);
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+        moveCamera(2);
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        moveCamera(3);
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        moveCamera(4);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -322,7 +341,7 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
-float mouse_sense = 1.0f;
+
 // glfw: whenever the mouse moves, this callback is called
 // -------------------------------------------------------
 void mouse_callback(GLFWwindow *window, double xpos, double ypos)
@@ -350,6 +369,34 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos)
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
 {
     camera.ProcessMouseScroll(yoffset);
+}
+
+void moveCamera(int direction)
+{
+    switch (direction)
+    {
+        /*
+    1 -> cima
+    2 -> baixo
+    3 -> esquerda
+    4 -> direita
+    */
+    case 1:
+        camera.ProcessMouseMovement(0.0f, arrow_sense);
+        break;
+    case 2:
+        camera.ProcessMouseMovement(0.0f, -arrow_sense);
+        break;
+    case 3:
+        camera.ProcessMouseMovement(-arrow_sense, 0.0f);
+        break;
+    case 4:
+        camera.ProcessMouseMovement(arrow_sense, 0.0f);
+        break;
+
+    default:
+        break;
+    }
 }
 
 // Gerar labirinto
