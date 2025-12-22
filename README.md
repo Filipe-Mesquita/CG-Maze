@@ -15,5 +15,8 @@
 
 ## Afazeres
 
-  - Labirinto gerado automaticamente
-  - Câmara em primeira pessoa (FPS)
+  - Labirinto gerado automaticamente ✅
+  - Câmara em primeira pessoa (FPS) ✅
+  - Menu inicial (linha de comandos) ✅ -> temporário
+  - Iluminação básica ✅ -> Por enquanto
+  - Texturas
