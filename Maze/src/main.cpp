@@ -23,10 +23,15 @@ void moveCamera(int direction);
 void increaseArrowSense();
 void decreaseArrowSense();
 
-// Gerar o labirinto
+// Funções para modos
+void setEasyMode();
+void setNormalMode();
+void setHardMode();
+
+// Tamanho do labirinto
 //
-const int MAZE_W = 21;
-const int MAZE_H = 21;
+int MAZE_W;
+int MAZE_H;
 const float CELL_SIZE = 1.0f;
 
 std::vector<std::vector<int>> maze;
@@ -73,8 +78,41 @@ std::vector<glm::vec3> bush_vertices;
 std::vector<glm::vec2> bush_uvs;
 std::vector<glm::vec3> bush_normals;
 
+void setEasyMode() {
+    MAZE_W = 15;
+    MAZE_H = 15;
+}
+
+void setNormalMode() {
+    MAZE_W = 21;
+    MAZE_H = 21;
+}
+
+void setHardMode() {
+    MAZE_W = 51;
+    MAZE_H = 51;
+    // Colcocar depois o filtro de bebado, noite e uma lanterna
+}
+
 int main()
 {
+    int choice;
+    do {
+        std::cout << "Modo:" << std::endl;
+        std::cout << "1 - Fácil" << std::endl;
+        std::cout << "2 - Normal" << std::endl;
+        std::cout << "3 - Difícil" << std::endl;
+        std::cin >> choice;
+        if (choice < 1 || choice > 3) {
+            std::cout << "Opção inválida. Tente novamente." << std::endl;
+        }
+    } while (choice < 1 || choice > 3);
+    switch(choice) {
+        case 1: setEasyMode(); break;
+        case 2: setNormalMode(); break;
+        case 3: setHardMode(); break;
+    }
+
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
