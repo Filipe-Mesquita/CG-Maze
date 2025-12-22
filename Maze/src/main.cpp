@@ -18,6 +18,10 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
+//NEW camera functions
+void moveCamera(int direction);
+void increaseArrowSense();
+void decreaseArrowSense();
 
 // Gerar o labirinto
 //
@@ -33,14 +37,21 @@ void generateMaze();
 void carveMaze(int x, int z);
 
 // settings
+/*
 const unsigned int SCR_WIDTH = 1920;
 const unsigned int SCR_HEIGHT = 1080;
+*/
 
 // camera
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
-float lastX = SCR_WIDTH / 2.0f;
-float lastY = SCR_HEIGHT / 2.0f;
+Camera camera(glm::vec3(-1.5f, 0.5f, 1.0f));
+float lastX;
+float lastY;
 bool firstMouse = true;
+float centerX;
+float centerY;
+
+float mouse_sense = 1.0f;
+float arrow_sense = 3.0f;
 
 // timing
 float deltaTime = 0.0f;
@@ -74,22 +85,37 @@ int main()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
+    GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+    lastX = mode->width / 2.0f;
+    lastY = mode->height / 2.0f;
+
+    centerX = mode->width / 2.0f;
+    centerY = mode->height / 2.0f;
+
     // glfw window creation
     // --------------------
-    GLFWwindow *window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Maze", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(mode->width, mode->height, "Maze", NULL, NULL);
     if (window == NULL)
     {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
         return -1;
     }
+
     glfwMakeContextCurrent(window);
+
+    glfwShowWindow(window);
+    glfwFocusWindow(window);
+
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetScrollCallback(window, scroll_callback);
 
     // tell GLFW to capture our mouse
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -108,9 +134,8 @@ int main()
     Shader lightingShader("./shaders/2.1.basic_lighting.vs", "./shaders/2.1.basic_lighting.fs");
     Shader lampShader("./shaders/2.1.lamp.vs", "./shaders/2.1.lamp.fs");
 
-    if(transferDataToGPUMemory() == -1)
+    if (transferDataToGPUMemory() == -1)
         return -1;
-
 
     srand(time(NULL));
     generateMaze();
@@ -142,7 +167,7 @@ int main()
         lightingShader.setVec3("viewPos", camera.Position);
 
         // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)mode->width / (float)mode->height, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
         lightingShader.setMat4("projection", projection);
         lightingShader.setMat4("view", view);
@@ -159,15 +184,14 @@ int main()
         {
             for (int x = 0; x < MAZE_W; x++)
             {
-                if (maze[z][x] == 1)   // arbusto
+                if (maze[z][x] == 1) // arbusto
                 {
                     glm::mat4 model = glm::mat4(1.0f);
 
                     model = glm::translate(model, glm::vec3(
-                        x * CELL_SIZE,
-                        0.0f,
-                        z * CELL_SIZE
-                    ));
+                                                      x * CELL_SIZE,
+                                                      0.0f,
+                                                      z * CELL_SIZE));
 
                     model = glm::scale(model, glm::vec3(0.5f));
 
@@ -206,7 +230,7 @@ int main()
     return 0;
 }
 
-int loadMeshFromFile(char obj_file[], std::vector<float>& bufferData, std::vector<glm::vec3>& vertices, std::vector<glm::vec2>& uvs, std::vector<glm::vec3>& normals)
+int loadMeshFromFile(char obj_file[], std::vector<float> &bufferData, std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &normals)
 {
     if (!loadOBJ(obj_file, vertices, uvs, normals))
     {
@@ -276,7 +300,6 @@ int transferDataToGPUMemory(void)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
-
     return 0;
 }
 
@@ -295,6 +318,26 @@ void processInput(GLFWwindow *window)
         camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
+
+    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS)
+        increaseArrowSense();
+    if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS)
+        decreaseArrowSense();
+
+    /*
+    1 -> cima
+    2 -> baixo
+    3 -> esquerda
+    4 -> direita
+    */
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+        moveCamera(1);
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+        moveCamera(2);
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        moveCamera(3);
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        moveCamera(4);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
@@ -306,7 +349,6 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
-float mouse_sense = 0.1;
 // glfw: whenever the mouse moves, this callback is called
 // -------------------------------------------------------
 void mouse_callback(GLFWwindow *window, double xpos, double ypos)
@@ -325,6 +367,8 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos)
     lastY = ypos;
 
     camera.ProcessMouseMovement(xoffset, yoffset);
+
+    glfwSetCursorPos(window, centerX, centerY);
 }
 
 // glfw: whenever the mouse scroll wheel scrolls, this callback is called
@@ -334,16 +378,56 @@ void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
     camera.ProcessMouseScroll(yoffset);
 }
 
+void moveCamera(int direction)
+{
+    switch (direction)
+    {
+        /*
+    1 -> cima
+    2 -> baixo
+    3 -> esquerda
+    4 -> direita
+    */
+    case 1:
+        camera.ProcessMouseMovement(0.0f, arrow_sense);
+        break;
+    case 2:
+        camera.ProcessMouseMovement(0.0f, -arrow_sense);
+        break;
+    case 3:
+        camera.ProcessMouseMovement(-arrow_sense, 0.0f);
+        break;
+    case 4:
+        camera.ProcessMouseMovement(arrow_sense, 0.0f);
+        break;
+
+    default:
+        break;
+    }
+}
+
+void increaseArrowSense()
+{
+    arrow_sense += 0.5f;
+}
+void decreaseArrowSense()
+{
+    arrow_sense -= 0.5f;
+
+    if (arrow_sense <= 0.0f)
+        arrow_sense = 0.5f;
+}
+
 // Gerar labirinto
 //
 
 void carveMaze(int x, int z)
 {
     static int dirs[4][2] = {
-        { 1, 0 },  // direita
-        { -1, 0 }, // esquerda
-        { 0, 1 },  // baixo
-        { 0, -1 }  // cima
+        {1, 0},  // direita
+        {-1, 0}, // esquerda
+        {0, 1},  // baixo
+        {0, -1}  // cima
     };
 
     // baralhar direções
@@ -381,12 +465,14 @@ void generateMaze()
     maze[1][1] = 0;
     carveMaze(1, 1);
 
-    for (int x = 0; x < MAZE_W; x++) {
+    for (int x = 0; x < MAZE_W; x++)
+    {
         maze[0][x] = 1;
         maze[MAZE_H - 1][x] = 1;
     }
 
-    for (int z = 0; z < MAZE_H; z++) {
+    for (int z = 0; z < MAZE_H; z++)
+    {
         maze[z][0] = 1;
         maze[z][MAZE_W - 1] = 1;
     }
@@ -396,8 +482,6 @@ void generateMaze()
 
     int exitZ = MAZE_H - 2;
 
-    maze[exitZ][MAZE_W - 2] = 0; 
-    maze[exitZ][MAZE_W - 1] = 0; 
+    maze[exitZ][MAZE_W - 2] = 0;
+    maze[exitZ][MAZE_W - 1] = 0;
 }
-
-
