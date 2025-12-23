@@ -20,4 +20,5 @@
   - Câmara em primeira pessoa (FPS) ✅
   - Menu inicial (linha de comandos) ✅ -> temporário
   - Iluminação básica ✅ -> Por enquanto
+  - Chão da cena
   - Texturas
