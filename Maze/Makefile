@@ -23,11 +23,15 @@ OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 # let us check the operating system (Linux, Mac-Darwinuname) to define libs for linker
 SYSTEM_UNAME := $(shell uname -s)
 ifeq ($(SYSTEM_UNAME),Linux)
-	LDLIBS := -lm -lGLU -lGL -lGLEW -lglfw 
+	LDLIBS := -lm -lGLU -lGL -lGLEW -lglfw -lfreetype
 endif
 ifeq ($(SYSTEM_UNAME),Darwin)
-	LDLIBS := -lm -framework OpenGL -L/opt/local/lib/ -lglm -lGLEW -lglfw
+	LDLIBS := -lm -framework OpenGL -L/opt/local/lib/ -lglm -lGLEW -lglfw -lfreetype
 endif
+
+# Flags para FreeType
+CXXFLAGS := -I$(INC_DIR) -I$(GLAD_DIR)/include
+CFLAGS := -I$(INC_DIR) -I$(GLAD_DIR)/include
 
 .PHONY: all clean
 
@@ -37,10 +41,10 @@ $(EXE): $(OBJ) $(OBJ_DIR)/glad.o | $(BIN_DIR)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR) 
-	$(CXX) $(CXXFLAGS) $(CFLAGS) -I$(INC_DIR) -I$(GLAD_DIR)/include -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(OBJ_DIR)/glad.o: $(GLAD_DIR)/src/glad.c | $(OBJ_DIR)
-	$(CXX) -I$(INC_DIR) -I$(GLAD_DIR)/include -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
@@ -49,4 +53,3 @@ clean:
 	@$(RM) -rv $(BIN_DIR) $(OBJ_DIR) $(OUTPUTS_DIR)/*.* $(RESULTS_DIR)/*.*
 
 -include $(OBJ:.o=.d)
-
