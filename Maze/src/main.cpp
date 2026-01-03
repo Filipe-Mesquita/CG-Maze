@@ -14,6 +14,8 @@
 
 #include <ctime>
 
+#include <./include/stb_image.h>
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
@@ -22,6 +24,9 @@ void processInput(GLFWwindow *window);
 void moveCamera(int direction);
 void increaseArrowSense();
 void decreaseArrowSense();
+
+// Texture prepare function
+void prepareTextures();
 
 // Funções para modos
 void setEasyMode();
@@ -67,50 +72,77 @@ float lastFrame = 0.0f;
 glm::vec3 lightPos(1.2f, 1.0f, 2.0f);
 
 // obj to load
-char bush_File[] = "./meshes/bush.obj";
+char wall_mesh_File[] = "./meshes/wall.obj";
 
-// bush
-std::vector<float> bush_bufferData;
-unsigned int bush_VBO, bush_VAO;
+// Wall
+std::vector<float> wall_bufferData;
+unsigned int wall_VBO, wall_VAO;
 
 // Arrays que vão armazenar as coordenadas dos vertices, uvs e normais do objeto
-std::vector<glm::vec3> bush_vertices;
-std::vector<glm::vec2> bush_uvs;
-std::vector<glm::vec3> bush_normals;
+std::vector<glm::vec3> wall_vertices;
+std::vector<glm::vec2> wall_uvs;
+std::vector<glm::vec3> wall_normals;
 
-void setEasyMode() {
+// Textura
+int wallWidth;
+int wallHeight;
+int wallNrChannels;
+char wall_texture_File[] = "./textures/bricks_wall_texture.png";
+unsigned int wallTexture;
+unsigned char *wallData;
+
+// Floor
+std::vector<glm::vec3> floor_vertices;
+std::vector<glm::vec2> floor_uvs;
+std::vector<glm::vec3> floor_normals;
+
+
+void setEasyMode()
+{
     MAZE_W = 15;
     MAZE_H = 15;
 }
 
-void setNormalMode() {
+void setNormalMode()
+{
     MAZE_W = 21;
     MAZE_H = 21;
 }
 
-void setHardMode() {
+void setHardMode()
+{
     MAZE_W = 51;
     MAZE_H = 51;
     // Colcocar depois o filtro de bebado, noite e uma lanterna
 }
 
+int choice;
+
 int main()
 {
-    int choice;
-    do {
+    do
+    {
         std::cout << "Modo:" << std::endl;
         std::cout << "1 - Fácil" << std::endl;
         std::cout << "2 - Normal" << std::endl;
         std::cout << "3 - Difícil" << std::endl;
         std::cin >> choice;
-        if (choice < 1 || choice > 3) {
+        if (choice < 1 || choice > 3)
+        {
             std::cout << "Opção inválida. Tente novamente." << std::endl;
         }
     } while (choice < 1 || choice > 3);
-    switch(choice) {
-        case 1: setEasyMode(); break;
-        case 2: setNormalMode(); break;
-        case 3: setHardMode(); break;
+    switch (choice)
+    {
+    case 1:
+        setEasyMode();
+        break;
+    case 2:
+        setNormalMode();
+        break;
+    case 3:
+        setHardMode();
+        break;
     }
 
     // glfw: initialize and configure
@@ -176,6 +208,8 @@ int main()
     if (transferDataToGPUMemory() == -1)
         return -1;
 
+    prepareTextures();
+
     srand(time(NULL));
     generateMaze();
 
@@ -200,7 +234,7 @@ int main()
 
         // be sure to activate shader when setting uniforms/drawing objects
         lightingShader.use();
-        lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
+        // lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
         lightingShader.setVec3("lightPos", lightPos);
         lightingShader.setVec3("viewPos", camera.Position);
@@ -217,7 +251,7 @@ int main()
 
         // render dos cubos
         //
-        glBindVertexArray(bush_VAO);
+        glBindVertexArray(wall_VAO);
 
         for (int z = 0; z < MAZE_H; z++)
         {
@@ -233,7 +267,10 @@ int main()
                                                       z * CELL_SIZE));
 
                     lightingShader.setMat4("model", model);
-                    glDrawArrays(GL_TRIANGLES, 0, bush_vertices.size());
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, wallTexture);
+                    lightingShader.setInt("texture1", 0);
+                    glDrawArrays(GL_TRIANGLES, 0, wall_vertices.size());
                 }
             }
         }
@@ -247,8 +284,8 @@ int main()
         model = glm::scale(model, glm::vec3(0.2f)); // a smaller cube
         lampShader.setMat4("model", model);
 
-        glBindVertexArray(bush_VAO);
-        glDrawArrays(GL_TRIANGLES, 0, bush_vertices.size());
+        glBindVertexArray(wall_VAO);
+        glDrawArrays(GL_TRIANGLES, 0, wall_vertices.size());
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -258,8 +295,8 @@ int main()
 
     // optional: de-allocate all resources once they've outlived their purpose:
     // ------------------------------------------------------------------------
-    glDeleteVertexArrays(1, &bush_VAO);
-    glDeleteBuffers(1, &bush_VBO);
+    glDeleteVertexArrays(1, &wall_VAO);
+    glDeleteBuffers(1, &wall_VBO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
@@ -315,17 +352,18 @@ int loadMeshFromFile(char obj_file[], std::vector<float> &bufferData, std::vecto
 
 int transferDataToGPUMemory(void)
 {
-    if (loadMeshFromFile(bush_File, bush_bufferData, bush_vertices, bush_uvs, bush_normals) == -1)
+    //Wall
+    if (loadMeshFromFile(wall_mesh_File, wall_bufferData, wall_vertices, wall_uvs, wall_normals) == -1)
         return -1;
 
     // configure the deer's VAO (and VBO)
-    glGenVertexArrays(1, &bush_VAO);
-    glGenBuffers(1, &bush_VBO);
+    glGenVertexArrays(1, &wall_VAO);
+    glGenBuffers(1, &wall_VBO);
 
-    glBindBuffer(GL_ARRAY_BUFFER, bush_VBO);
-    glBufferData(GL_ARRAY_BUFFER, bush_bufferData.size() * sizeof(float), bush_bufferData.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, wall_VBO);
+    glBufferData(GL_ARRAY_BUFFER, wall_bufferData.size() * sizeof(float), wall_bufferData.data(), GL_DYNAMIC_DRAW);
 
-    glBindVertexArray(bush_VAO);
+    glBindVertexArray(wall_VAO);
 
     // position attribute
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
@@ -337,7 +375,59 @@ int transferDataToGPUMemory(void)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
+    //Floor
+
+
     return 0;
+}
+
+void prepareTextures()
+{
+    std::cout << "Loading wall texture...\n";
+
+    glGenTextures(1, &wallTexture);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, wallTexture);
+
+    // Wrapping / filtering
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Flip (Blender compatibility)
+    stbi_set_flip_vertically_on_load(true);
+
+    wallData = stbi_load(wall_texture_File, &wallWidth, &wallHeight, &wallNrChannels, 0);
+
+    if (wallData)
+    {
+        GLenum format;
+        if (wallNrChannels == 1)
+            format = GL_RED;
+        else if (wallNrChannels == 3)
+            format = GL_RGB;
+        else if (wallNrChannels == 4)
+            format = GL_RGBA;
+
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            format,
+            wallWidth,
+            wallHeight,
+            0,
+            format,
+            GL_UNSIGNED_BYTE,
+            wallData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load wall texture\n";
+    }
+
+    stbi_image_free(wallData);
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
