@@ -24,7 +24,7 @@ enum Camera_Movement
 // Default camera values
 const float YAW = 0.0f; //Changed from -90 to 0 so the player spawns lookng in the right direction
 const float PITCH = 0.0f;
-const float SPEED = 2.5f;
+const float SPEED = 2.0f;
 const float SENSITIVITY = 0.1f;
 const float ZOOM = 45.0f;
 
