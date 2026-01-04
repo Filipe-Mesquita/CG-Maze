@@ -28,6 +28,8 @@ void setEasyMode();
 void setNormalMode();
 void setHardMode();
 
+bool checkCollision(glm::vec3 pos);
+
 // Tamanho do labirinto
 //
 int MAZE_W;
@@ -47,6 +49,10 @@ const unsigned int SCR_WIDTH = 1920;
 const unsigned int SCR_HEIGHT = 1080;
 */
 
+// Raio do jogador para colisões
+//
+const float PLAYER_RADIUS = 0.10f;
+
 // camera
 Camera camera(glm::vec3(-1.5f, 0.5f, 1.0f));
 float lastX;
@@ -54,7 +60,7 @@ float lastY;
 bool firstMouse = true;
 float centerX;
 float centerY;
-float fixY = true; // Controls if the player's Y is fixed or not
+bool fixY = true; // Controls if the player's Y is fixed or not
 
 float mouse_sense = 1.0f;
 float arrow_sense = 3.0f;
@@ -179,6 +185,21 @@ int main()
     srand(time(NULL));
     generateMaze();
 
+    // Spawn automático na primeira célula de caminho (normalmente (1,1))
+    for (int z = 0; z < MAZE_H; z++) {
+        for (int x = 0; x < MAZE_W; x++) {
+            if (maze[z][x] == 0) {
+                camera.Position = glm::vec3(
+                    1.0f * CELL_SIZE + 0.5f * CELL_SIZE,
+                    0.5f,
+                    1.0f * CELL_SIZE + 0.5f * CELL_SIZE
+                );
+                z = MAZE_H; // sair dos loops
+                break;
+            }
+        }
+    }
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
@@ -192,6 +213,16 @@ int main()
         // input
         // -----
         processInput(window);
+
+        // Verifica se o jogador chegou ao fim do labirinto
+        // ( VER MELHOR )
+        int px = (int)floor(camera.Position.x / CELL_SIZE);
+        int pz = (int)floor(camera.Position.z / CELL_SIZE);
+
+        if (pz == MAZE_H - 2 && px == MAZE_W - 1) {
+            std::cout << "GANHASTEEEEEEEEE CARALHOOOOOOO!" << std::endl;
+            glfwSetWindowShouldClose(window, true);
+        }
 
         // render
         // ------
@@ -228,9 +259,10 @@ int main()
                     glm::mat4 model = glm::mat4(1.0f);
 
                     model = glm::translate(model, glm::vec3(
-                                                      x * CELL_SIZE,
-                                                      0.0f,
-                                                      z * CELL_SIZE));
+                        (x + 0.5f) * CELL_SIZE,
+                        0.0f,
+                        (z + 0.5f) * CELL_SIZE
+                    ));
 
                     model = glm::scale(model, glm::vec3(0.5f));
 
@@ -349,6 +381,9 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
+    glm::vec3 oldPos = camera.Position;
+
+    // mover (WASD)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camera.ProcessKeyboard(FORWARD, deltaTime, fixY);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -358,13 +393,22 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime, fixY);
 
+    glm::vec3 target = camera.Position;
+
+    // slide por eixos (X depois Z)
+    camera.Position = glm::vec3(target.x, oldPos.y, oldPos.z);
+    if (checkCollision(camera.Position))
+        camera.Position.x = oldPos.x;
+
+    camera.Position = glm::vec3(camera.Position.x, oldPos.y, target.z);
+    if (checkCollision(camera.Position))
+        camera.Position.z = oldPos.z;
+
+
+    // resto do teu input (inalterado)
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
-    {
-        if (fixY)
-            fixY = false;
-        else
-            fixY = true;
-    }
+        fixY = !fixY;
+
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         camera.ProcessKeyboard(UP, deltaTime, fixY);
     if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
@@ -375,12 +419,6 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS)
         decreaseArrowSense();
 
-    /*
-    1 -> cima
-    2 -> baixo
-    3 -> esquerda
-    4 -> direita
-    */
     if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
         moveCamera(1);
     if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
@@ -390,6 +428,7 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
         moveCamera(4);
 }
+
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
 // ---------------------------------------------------------------------------------------------
@@ -536,3 +575,58 @@ void generateMaze()
     maze[exitZ][MAZE_W - 2] = 0;
     maze[exitZ][MAZE_W - 1] = 0;
 }
+
+// Função de colisão
+//
+static inline float clampf(float v, float a, float b){ return (v < a) ? a : (v > b) ? b : v; }
+
+bool checkCollision(glm::vec3 pos)
+{
+    const float r = PLAYER_RADIUS;
+    const float r2 = r * r;
+
+    // limites do mundo
+    const float minWorldX = 0.0f;
+    const float minWorldZ = 0.0f;
+    const float maxWorldX = MAZE_W * CELL_SIZE;
+    const float maxWorldZ = MAZE_H * CELL_SIZE;
+
+    if (pos.x - r < minWorldX || pos.x + r > maxWorldX ||
+        pos.z - r < minWorldZ || pos.z + r > maxWorldZ)
+        return true;
+
+    int cx = (int)floor(pos.x / CELL_SIZE);
+    int cz = (int)floor(pos.z / CELL_SIZE);
+
+    for (int dz = -1; dz <= 1; dz++)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            int mx = cx + dx;
+            int mz = cz + dz;
+
+            if (mx < 0 || mx >= MAZE_W || mz < 0 || mz >= MAZE_H)
+                continue;
+
+            if (maze[mz][mx] != 1)
+                continue;
+
+            float minX = mx * CELL_SIZE;
+            float maxX = minX + CELL_SIZE;
+            float minZ = mz * CELL_SIZE;
+            float maxZ = minZ + CELL_SIZE;
+
+            float closestX = clampf(pos.x, minX, maxX);
+            float closestZ = clampf(pos.z, minZ, maxZ);
+
+            float dxp = pos.x - closestX;
+            float dzp = pos.z - closestZ;
+
+            if ((dxp * dxp + dzp * dzp) < r2)
+                return true;
+        }
+    }
+    return false;
+}
+
+
