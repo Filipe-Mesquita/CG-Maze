@@ -288,8 +288,6 @@ int main()
                         (z + 0.5f) * CELL_SIZE
                     ));
 
-                    model = glm::scale(model, glm::vec3(0.5f));
-
                     lightingShader.setMat4("model", model);
                     glDrawArrays(GL_TRIANGLES, 0, bush_vertices.size());
                 }

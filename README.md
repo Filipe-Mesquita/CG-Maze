@@ -2,8 +2,8 @@
 
 ## Ideias
 
-  - Colisões simples (grid-based)
-  - Labirinto gerado automaticamente
+  - Colisões simples (grid-based) ✅
+  - Labirinto gerado automaticamente ✅
   - Câmara em primeira pessoa (FPS)
   - Iluminação básica (Por enquanto)
   - Texturas
@@ -11,9 +11,14 @@
   - Spotlight (lanterna)
   - Som ambiente e de passos
   - Menu inicial
+  - Detetar chegada à saída (vitória) ✅
 
 
 ## Afazeres
 
-  - Labirinto gerado automaticamente
-  - Câmara em primeira pessoa (FPS)
+  - Labirinto gerado automaticamente ✅
+  - Câmara em primeira pessoa (FPS) ✅
+  - Menu inicial (linha de comandos) ✅ -> temporário
+  - Iluminação básica ✅ -> Por enquanto
+  - Chão da cena
+  - Texturas
