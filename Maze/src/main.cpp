@@ -14,6 +14,11 @@
 
 #include <ctime>
 
+#include <AL/al.h>
+#include <AL/alc.h>
+#include <sndfile.h>
+
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
@@ -29,6 +34,11 @@ void setNormalMode();
 void setHardMode();
 
 bool checkCollision(glm::vec3 pos);
+
+void stopFootsteps();
+void startFootsteps();
+bool initAudio();
+void shutdownAudio();
 
 // Tamanho do labirinto
 //
@@ -52,6 +62,16 @@ const unsigned int SCR_HEIGHT = 1080;
 // Raio do jogador para colisões
 //
 const float PLAYER_RADIUS = 0.10f;
+
+// Som
+//
+ALCdevice* alDevice = nullptr;
+ALCcontext* alContext = nullptr;
+ALuint stepBuffer = 0;
+ALuint stepSource = 0;
+
+bool isStepPlaying = false;
+
 
 // camera
 Camera camera(glm::vec3(-1.5f, 0.5f, 1.0f));
@@ -173,6 +193,10 @@ int main()
     // configure global opengl state
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    if (!initAudio())
+    std::cout << "Áudio não iniciado (continuo sem som)\n";
 
     // build and compile our shader zprogram
     // ------------------------------------
@@ -296,6 +320,7 @@ int main()
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
     glfwTerminate();
+    shutdownAudio();
     return 0;
 }
 
@@ -376,6 +401,13 @@ int transferDataToGPUMemory(void)
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
+
+    bool wantMove =
+    glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+    glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
+    glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
+    glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
@@ -402,6 +434,12 @@ void processInput(GLFWwindow *window)
     if (checkCollision(camera.Position))
         camera.Position.z = oldPos.z;
 
+    float moved = glm::length(glm::vec2(camera.Position.x - oldPos.x, camera.Position.z - oldPos.z));
+
+    if (wantMove && moved > 0.0001f)
+        startFootsteps();
+    else
+        stopFootsteps();
 
     // resto do teu input (inalterado)
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
@@ -627,4 +665,88 @@ bool checkCollision(glm::vec3 pos)
     return false;
 }
 
+// Som    
+// FUTURO: COLOCAR SOM DA LATERNA
+//
+bool loadWavToOpenAL(const char* filename, ALuint& outBuffer)
+{
+    SF_INFO sfinfo;
+    SNDFILE* sndfile = sf_open(filename, SFM_READ, &sfinfo);
+    if (!sndfile) {
+        std::cout << "Erro a abrir som: " << filename << "\n";
+        return false;
+    }
+
+    std::vector<short> samples(sfinfo.frames * sfinfo.channels);
+    sf_readf_short(sndfile, samples.data(), sfinfo.frames);
+    sf_close(sndfile);
+
+    ALenum format;
+    if (sfinfo.channels == 1) format = AL_FORMAT_MONO16;
+    else if (sfinfo.channels == 2) format = AL_FORMAT_STEREO16;
+    else {
+        std::cout << "Formato WAV não suportado (channels=" << sfinfo.channels << ")\n";
+        return false;
+    }
+
+    alGenBuffers(1, &outBuffer);
+    alBufferData(outBuffer, format, samples.data(),
+                 (ALsizei)(samples.size() * sizeof(short)), sfinfo.samplerate);
+
+    return true;
+}
+
+bool initAudio()
+{
+    alDevice = alcOpenDevice(nullptr);
+    if (!alDevice) {
+        std::cout << "Falha a abrir OpenAL device\n";
+        return false;
+    }
+
+    alContext = alcCreateContext(alDevice, nullptr);
+    if (!alContext || !alcMakeContextCurrent(alContext)) {
+        std::cout << "Falha a criar OpenAL context\n";
+        return false;
+    }
+
+    if (!loadWavToOpenAL("./sounds/step.wav", stepBuffer))
+        return false;
+
+    alGenSources(1, &stepSource);
+    alSourcei(stepSource, AL_BUFFER, stepBuffer);
+    alSourcef(stepSource, AL_GAIN, 1.0f);         // volume
+    alSourcef(stepSource, AL_PITCH, 1.0f);        // pitch
+    alSourcei(stepSource, AL_LOOPING, AL_TRUE);   // loop contínuo
+
+    return true;
+}
+
+void shutdownAudio()
+{
+    if (stepSource) alDeleteSources(1, &stepSource);
+    if (stepBuffer) alDeleteBuffers(1, &stepBuffer);
+
+    if (alContext) {
+        alcMakeContextCurrent(nullptr);
+        alcDestroyContext(alContext);
+    }
+    if (alDevice) alcCloseDevice(alDevice);
+}
+
+void startFootsteps()
+{
+    if (!isStepPlaying) {
+        alSourcePlay(stepSource);
+        isStepPlaying = true;
+    }
+}
+
+void stopFootsteps()
+{
+    if (isStepPlaying) {
+        alSourceStop(stepSource);
+        isStepPlaying = false;
+    }
+}
 
