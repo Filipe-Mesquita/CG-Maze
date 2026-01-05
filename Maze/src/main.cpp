@@ -347,11 +347,19 @@ int main()
         // lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
         lightingShader.setFloat("ambientS", ambientLightStrengh);
+
+        //flashlight attributes
         lightingShader.setVec3("lightPos", camera.Position);
         lightingShader.setVec3("lightDir", camera.Front);
         lightingShader.setVec3("viewPos", camera.Position);
 
+        // flashlight on/off
         lightingShader.setBool("flashlightOn", flashlightOn);
+
+        // Light Falloff
+        lightingShader.setFloat("constant", 1.0f);
+        lightingShader.setFloat("linear", 0.09f);
+        lightingShader.setFloat("quadratic", 0.032f);
 
         lightingShader.setFloat("cutOff", cos(glm::radians(innerCutOff)));
         lightingShader.setFloat("outerCutOff", cos(glm::radians(outerCutOff)));
