@@ -4,9 +4,9 @@
 
   - Colisões simples (grid-based) ✅
   - Labirinto gerado automaticamente ✅
-  - Câmara em primeira pessoa (FPS)
-  - Iluminação básica (Por enquanto)
-  - Texturas
+  - Câmara em primeira pessoa (FPS) ✅
+  - Iluminação básica (Por enquanto) ✅
+  - Texturas ✅
   - Modos de jogo (Fácil (labirinto pequeno), Normal (labirinto grande), Dificil(labirinto grande, modo bebado, noite com nevoa))
   - Spotlight (lanterna)
   - Som ambiente () e de passos (✅)
@@ -20,5 +20,6 @@
   - Câmara em primeira pessoa (FPS) ✅
   - Menu inicial (linha de comandos) ✅ -> temporário
   - Iluminação básica ✅ -> Por enquanto
-  - Chão da cena
-  - Texturas
+  - Chão da cena ✅
+  - Texturas ✅
+  - Spotlight
