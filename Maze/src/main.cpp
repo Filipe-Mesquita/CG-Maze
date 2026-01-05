@@ -44,6 +44,9 @@ void startFootsteps();
 bool initAudio();
 void shutdownAudio();
 
+void createFullScreenQuad();
+void createSceneFBO(int w, int h);
+
 // Tamanho do labirinto
 //
 int MAZE_W;
@@ -87,7 +90,7 @@ float centerY;
 bool fixY = true; // Controls if the player's Y is fixed or not
 
 float mouse_sense = 1.0f;
-float arrow_sense = 3.0f;
+float arrow_sense = 10.0f;
 
 // timing
 float deltaTime = 0.0f;
@@ -126,6 +129,17 @@ std::vector<glm::vec3> floor_normals;
 std::vector<float> floor_bufferData;
 
 unsigned int floor_VBO, floor_VAO;
+
+// Bebado
+//
+unsigned int sceneFBO = 0;
+unsigned int sceneColorTex = 0;
+unsigned int sceneRBO = 0;
+
+unsigned int quadVAO = 0, quadVBO = 0;
+
+int SCR_W = 1280;
+int SCR_H = 720;
 
 // Floor Texture
 int floorWidth;
@@ -181,6 +195,8 @@ int main()
         setHardMode();
         break;
     }
+
+    bool drunkMode = (choice == 3);
 
     // glfw: initialize and configure
     // ------------------------------
@@ -254,6 +270,13 @@ int main()
     srand(time(NULL));
     generateMaze();
 
+    Shader drunkShader("./shaders/postprocess.vs", "./shaders/drunk.fs");
+
+    if (drunkMode) {
+        createSceneFBO(SCR_W, SCR_H);
+        createFullScreenQuad();
+    }
+        
     // Spawn automático na primeira célula de caminho (normalmente (1,1))
     for (int z = 0; z < MAZE_H; z++) {
         for (int x = 0; x < MAZE_W; x++) {
@@ -292,6 +315,16 @@ int main()
             std::cout << "GANHASTEEEEEEEEE CARALHOOOOOOO!" << std::endl;
             glfwSetWindowShouldClose(window, true);
         }
+
+        if (drunkMode) {
+            glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+        } else {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        glEnable(GL_DEPTH_TEST);
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // render
         // ------
@@ -347,9 +380,12 @@ int main()
 
         model = glm::mat4(1.0f);
         lightingShader.setMat4("model", model);
+
         glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, floorTexture);
         lightingShader.setInt("texture1", 1);
-        glDrawArrays(GL_TRIANGLES, 0, floor_vertices.size());
+
+        glDrawArrays(GL_TRIANGLES, 0, (GLsizei)floor_vertices.size());
 
         // also draw the lamp object
         lampShader.use();
@@ -362,6 +398,24 @@ int main()
 
         glBindVertexArray(wall_VAO);
         glDrawArrays(GL_TRIANGLES, 0, wall_vertices.size());
+
+        if (drunkMode)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glDisable(GL_DEPTH_TEST);
+
+            drunkShader.use();
+            drunkShader.setInt("sceneTex", 0);
+            drunkShader.setFloat("time", (float)glfwGetTime());
+            drunkShader.setFloat("intensity", 1.0f); // 0.8 a 1.4
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, sceneColorTex);
+
+            glBindVertexArray(quadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            glBindVertexArray(0);
+        }
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
@@ -380,6 +434,9 @@ int main()
     shutdownAudio();
     return 0;
 }
+
+// Funções 
+//
 
 int loadMeshFromFile(char obj_file[], std::vector<float> &bufferData, std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &normals)
 {
@@ -484,6 +541,9 @@ void generateFloor(int choice)
     float x1 = size;
     float z1 = size;
 
+    float uMax = (x1 - x0) / CELL_SIZE; // quantas “células” o chão tem em X
+    float vMax = (z1 - z0) / CELL_SIZE; // quantas “células” o chão tem em Z
+
     // --------- VÉRTICES (2 TRIÂNGULOS) ---------
     floor_vertices = {
         {x0, 0.0f, z0},
@@ -497,12 +557,13 @@ void generateFloor(int choice)
     // --------- UVs (TEXTURA REPETIDA) ----------
     floor_uvs = {
         {0.0f, 0.0f},
-        {0.0f, size},
-        {size, 0.0f},
+        {0.0f, vMax},
+        {uMax, 0.0f},
 
-        {size, 0.0f},
-        {0.0f, size},
-        {size, size}};
+        {uMax, 0.0f},
+        {0.0f, vMax},
+        {uMax, vMax}
+    };
 
     // --------- NORMAIS (TODAS PARA CIMA) -------
     for (int i = 0; i < 6; i++)
@@ -1001,5 +1062,59 @@ void stopFootsteps()
         alSourceStop(stepSource);
         isStepPlaying = false;
     }
+}
+
+// Bebado
+//
+void createSceneFBO(int w, int h)
+{
+    if (sceneFBO == 0) glGenFramebuffers(1, &sceneFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+
+    if (sceneColorTex == 0) glGenTextures(1, &sceneColorTex);
+    glBindTexture(GL_TEXTURE_2D, sceneColorTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorTex, 0);
+
+    if (sceneRBO == 0) glGenRenderbuffers(1, &sceneRBO);
+    glBindRenderbuffer(GL_RENDERBUFFER, sceneRBO);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, sceneRBO);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "FBO incompleto!\n";
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void createFullScreenQuad()
+{
+    float quadVertices[] = {
+        // pos      // uv
+        -1.f, -1.f,  0.f, 0.f,
+         1.f, -1.f,  1.f, 0.f,
+         1.f,  1.f,  1.f, 1.f,
+
+        -1.f, -1.f,  0.f, 0.f,
+         1.f,  1.f,  1.f, 1.f,
+        -1.f,  1.f,  0.f, 1.f
+    };
+
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    glBindVertexArray(0);
 }
 
