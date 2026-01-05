@@ -149,6 +149,12 @@ char floor_texture_File[] = "./textures/floor_texture.png";
 unsigned int floorTexture;
 unsigned char *floorData;
 
+
+//Spotlight
+float ambientLightStrengh = 0.1f;
+float innerCutOff = 12.5f;
+float outerCutOff = 17.5f;
+
 void setEasyMode()
 {
     MAZE_W = 15;
@@ -335,8 +341,13 @@ int main()
         lightingShader.use();
         // lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        lightingShader.setVec3("lightPos", lightPos);
+        lightingShader.setFloat("ambientS", ambientLightStrengh);
+        lightingShader.setVec3("lightPos", camera.Position);
+        lightingShader.setVec3("lightDir", camera.Front);
         lightingShader.setVec3("viewPos", camera.Position);
+
+        lightingShader.setFloat("cutOff", cos(glm::radians(innerCutOff)));
+        lightingShader.setFloat("outerCutOff", cos(glm::radians(outerCutOff)));
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)mode->width / (float)mode->height, 0.1f, 100.0f);
@@ -427,6 +438,8 @@ int main()
     // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &wall_VAO);
     glDeleteBuffers(1, &wall_VBO);
+    glDeleteVertexArrays(1, &floor_VAO);
+    glDeleteBuffers(1, &floor_VBO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------

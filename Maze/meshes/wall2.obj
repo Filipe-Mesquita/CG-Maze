@@ -1,6 +1,6 @@
 # Blender 5.0.1
 # www.blender.org
-mtllib wallNorm2.mtl
+mtllib wallNorm.mtl
 o Cube
 v -0.475000 0.000000 0.475000
 v -0.475000 0.025000 0.500000
