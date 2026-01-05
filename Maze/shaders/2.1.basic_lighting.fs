@@ -16,49 +16,51 @@ uniform vec3 viewPos;
 uniform float cutOff;
 uniform float outerCutOff;
 
+uniform bool flashlightOn;
+
 uniform sampler2D texture1;
 
 void main()
 {
-    // --- TEXTURE COLOR ---
-    vec3 texColor = texture(texture1, TexCoord).rgb;
+     vec3 texColor = texture(texture1, TexCoord).rgb;
 
-    // ambient 
-    float ambientStrength = ambientS;
+    // ───────────────── AMBIENT (sempre existe)
+    float ambientStrength = flashlightOn ? 0.15 : 0.02;
     vec3 ambient = ambientStrength * lightColor * texColor;
 
-    // -------- DIREÇÕES --------
-    vec3 norm = normalize(Normal);
-    vec3 toLight = normalize(lightPos - FragPos);
-
-    // Spotlight intensity
-    float theta = dot(toLight, normalize(-lightDir));
-
-    float epsilon = cutOff - outerCutOff;
-    float intensity = clamp((theta - outerCutOff) / epsilon, 0.0, 1.0);
-
-    // Se estiver fora do cone → só ambient
-    if (theta <= outerCutOff)
+    // Se a lanterna estiver desligada → só ambient
+    if (!flashlightOn)
     {
         FragColor = vec4(ambient, 1.0);
         return;
     }
 
-    // diffuse 
-    float diff = max(dot(norm, toLight), 0.0);
-    vec3 diffuse = diff * lightColor * texColor;
+    // ───────────────── NORMALS
+    vec3 norm = normalize(Normal);
+    vec3 lightDirection = normalize(lightPos - FragPos);
 
-    // -------- SPECULAR --------
-    float specularStrength = 0.15;   
-    float shininess = 6.0;           
+    // ───────────────── SPOTLIGHT (cone)
+    float theta = dot(lightDirection, normalize(-lightDir));
 
+    float innerCutoff = cos(radians(12.0)); // cone interior
+    float outerCutoff = cos(radians(18.0)); // borda suave
+
+    float intensity = clamp(
+        (theta - outerCutoff) / (innerCutoff - outerCutoff),
+        0.0, 1.0
+    );
+
+    // ───────────────── DIFFUSE
+    float diff = max(dot(norm, lightDirection), 0.0);
+    vec3 diffuse = diff * lightColor * intensity;
+
+    // ───────────────── SPECULAR (muito fraco → pedra)
+    float specularStrength = 0.1;
     vec3 viewDir = normalize(viewPos - FragPos);
-    vec3 reflectDir = reflect(-toLight, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * lightColor;
+    vec3 reflectDir = reflect(-lightDirection, norm);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 16.0);
+    vec3 specular = specularStrength * spec * lightColor * intensity;
 
-
-    // phong
-    vec3 result = ambient + (diffuse + specular) * intensity;
+    vec3 result = ambient + (diffuse + specular) * texColor;
     FragColor = vec4(result, 1.0);
 } 
