@@ -42,7 +42,7 @@ const float CELL_SIZE = 1.0f;
 std::vector<std::vector<int>> maze;
 
 /*--------------------------------------*/
-int transferDataToGPUMemory(void);
+int transferDataToGPUMemory(int choice);
 void generateMaze();
 void carveMaze(int x, int z);
 
@@ -59,7 +59,7 @@ float lastY;
 bool firstMouse = true;
 float centerX;
 float centerY;
-float fixY = true; // Controls if the player's Y is fixed or not
+bool fixY = true; // Controls if the player's Y is fixed or not
 
 float mouse_sense = 1.0f;
 float arrow_sense = 3.0f;
@@ -83,7 +83,7 @@ std::vector<glm::vec3> wall_vertices;
 std::vector<glm::vec2> wall_uvs;
 std::vector<glm::vec3> wall_normals;
 
-// Textura
+// Wall Texture
 int wallWidth;
 int wallHeight;
 int wallNrChannels;
@@ -92,10 +92,23 @@ unsigned int wallTexture;
 unsigned char *wallData;
 
 // Floor
+void generateFloor(int choice);
+
 std::vector<glm::vec3> floor_vertices;
 std::vector<glm::vec2> floor_uvs;
 std::vector<glm::vec3> floor_normals;
 
+std::vector<float> floor_bufferData;
+
+unsigned int floor_VBO, floor_VAO;
+
+// Floor Texture
+int floorWidth;
+int floorHeight;
+int floorNrChannels;
+char floor_texture_File[] = "./textures/floor_texture.png";
+unsigned int floorTexture;
+unsigned char *floorData;
 
 void setEasyMode()
 {
@@ -116,10 +129,9 @@ void setHardMode()
     // Colcocar depois o filtro de bebado, noite e uma lanterna
 }
 
-int choice;
-
 int main()
 {
+    int choice;
     do
     {
         std::cout << "Modo:" << std::endl;
@@ -205,7 +217,7 @@ int main()
     Shader lightingShader("./shaders/2.1.basic_lighting.vs", "./shaders/2.1.basic_lighting.fs");
     Shader lampShader("./shaders/2.1.lamp.vs", "./shaders/2.1.lamp.fs");
 
-    if (transferDataToGPUMemory() == -1)
+    if (transferDataToGPUMemory(choice) == -1)
         return -1;
 
     prepareTextures();
@@ -274,6 +286,15 @@ int main()
                 }
             }
         }
+
+        // Render do chão
+        glBindVertexArray(floor_VAO);
+
+        model = glm::mat4(1.0f);
+        lightingShader.setMat4("model", model);
+        glActiveTexture(GL_TEXTURE1);
+        lightingShader.setInt("texture1", 1);
+        glDrawArrays(GL_TRIANGLES, 0, floor_vertices.size());
 
         // also draw the lamp object
         lampShader.use();
@@ -350,9 +371,9 @@ int loadMeshFromFile(char obj_file[], std::vector<float> &bufferData, std::vecto
     return 0;
 }
 
-int transferDataToGPUMemory(void)
+int transferDataToGPUMemory(int choice)
 {
-    //Wall
+    // Wall
     if (loadMeshFromFile(wall_mesh_File, wall_bufferData, wall_vertices, wall_uvs, wall_normals) == -1)
         return -1;
 
@@ -375,14 +396,128 @@ int transferDataToGPUMemory(void)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
 
-    //Floor
-
-
+    // Floor
+    generateFloor(choice);
     return 0;
+}
+
+void generateFloor(int choice)
+{
+    std::cout << "Generating scene floor\n";
+
+    float size;
+
+    switch (choice)
+    {
+    case 1:
+        size = 16.0f;
+        break;
+    case 2:
+        size = 21.0f;
+        break;
+    case 3:
+        size = 51.0f;
+        break;
+    default:
+        size = 16.0f;
+        break;
+    }
+
+    float x0 = -2.0f;
+    float z0 = -2.0f;
+    float x1 = size;
+    float z1 = size;
+
+    // --------- VÉRTICES (2 TRIÂNGULOS) ---------
+    floor_vertices = {
+        {x0, 0.0f, z0},
+        {x0, 0.0f, z1},
+        {x1, 0.0f, z0},
+
+        {x1, 0.0f, z0},
+        {x0, 0.0f, z1},
+        {x1, 0.0f, z1}};
+
+    // --------- UVs (TEXTURA REPETIDA) ----------
+    floor_uvs = {
+        {0.0f, 0.0f},
+        {0.0f, size},
+        {size, 0.0f},
+
+        {size, 0.0f},
+        {0.0f, size},
+        {size, size}};
+
+    // --------- NORMAIS (TODAS PARA CIMA) -------
+    for (int i = 0; i < 6; i++)
+    {
+        floor_normals.push_back({0.0f, 1.0f, 0.0f});
+    }
+
+    // Store data in the buffer
+    for (size_t i = 0; i < floor_vertices.size(); ++i)
+    {
+        // Add vertex position
+        floor_bufferData.push_back(floor_vertices[i].x);
+        floor_bufferData.push_back(floor_vertices[i].y);
+        floor_bufferData.push_back(floor_vertices[i].z);
+
+        // Add normals (if they exist)
+        if (i < floor_normals.size())
+        {
+            floor_bufferData.push_back(floor_normals[i].x);
+            floor_bufferData.push_back(floor_normals[i].y);
+            floor_bufferData.push_back(floor_normals[i].z);
+        }
+        else
+        {
+            floor_bufferData.push_back(0.0f);
+            floor_bufferData.push_back(0.0f);
+            floor_bufferData.push_back(0.0f);
+        }
+
+        // Add UV coordinates
+        if (i < floor_uvs.size())
+        {
+            floor_bufferData.push_back(floor_uvs[i].x);
+            floor_bufferData.push_back(floor_uvs[i].y);
+        }
+        else
+        {
+            floor_bufferData.push_back(0.0f);
+            floor_bufferData.push_back(0.0f);
+        }
+    }
+
+    // Gerar VAO e VBO (uma vez)
+    glGenVertexArrays(1, &floor_VAO);
+    glGenBuffers(1, &floor_VBO);
+
+    glBindVertexArray(floor_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, floor_VBO);
+    glBufferData(GL_ARRAY_BUFFER, floor_bufferData.size() * sizeof(float), floor_bufferData.data(), GL_STATIC_DRAW);
+
+    // STRIDE: 8 floats por vértice
+    GLsizei stride = 8 * sizeof(float);
+
+    // ---------- POSIÇÃO ----------
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // ---------- NORMAL ----------
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    // ---------- UV ----------
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+
+    glBindVertexArray(0);
 }
 
 void prepareTextures()
 {
+    // Wall
     std::cout << "Loading wall texture...\n";
 
     glGenTextures(1, &wallTexture);
@@ -410,16 +545,7 @@ void prepareTextures()
         else if (wallNrChannels == 4)
             format = GL_RGBA;
 
-        glTexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            format,
-            wallWidth,
-            wallHeight,
-            0,
-            format,
-            GL_UNSIGNED_BYTE,
-            wallData);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, wallWidth, wallHeight, 0, format, GL_UNSIGNED_BYTE, wallData);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     else
@@ -428,6 +554,44 @@ void prepareTextures()
     }
 
     stbi_image_free(wallData);
+
+    // Floor
+    std::cout << "Loading floor texture...\n";
+
+    glGenTextures(1, &floorTexture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, floorTexture);
+
+    // Wrapping / filtering
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Flip (Blender compatibility)
+    stbi_set_flip_vertically_on_load(true);
+
+    floorData = stbi_load(floor_texture_File, &floorWidth, &floorHeight, &floorNrChannels, 0);
+
+    if (floorData)
+    {
+        GLenum format;
+        if (floorNrChannels == 1)
+            format = GL_RED;
+        else if (floorNrChannels == 3)
+            format = GL_RGB;
+        else if (floorNrChannels == 4)
+            format = GL_RGBA;
+
+        glTexImage2D(GL_TEXTURE_2D, 0, format, floorWidth, floorHeight, 0, format, GL_UNSIGNED_BYTE, floorData);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load floor texture\n";
+    }
+
+    stbi_image_free(floorData);
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
