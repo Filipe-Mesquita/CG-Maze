@@ -7,9 +7,9 @@
   - Câmara em primeira pessoa (FPS) ✅
   - Iluminação básica (Por enquanto) ✅
   - Texturas ✅
-  - Modos de jogo (Fácil (labirinto pequeno), Normal (labirinto grande), Dificil(labirinto grande, modo bebado, noite com nevoa))
-  - Spotlight (lanterna)
-  - Som ambiente () e de passos (✅)
+  - Modos de jogo (Fácil (labirinto pequeno), Normal (labirinto grande com lanterna), Dificil (labirinto grande com filtro bêbado e/ou com lanterna))
+  - Spotlight (lanterna) ✅
+  - Som ambiente (), de passos (✅) e de lanterna ()
   - Menu inicial
   - Detetar chegada à saída (vitória) ✅
 
@@ -19,7 +19,7 @@
   - Labirinto gerado automaticamente ✅
   - Câmara em primeira pessoa (FPS) ✅
   - Menu inicial (linha de comandos) ✅ -> temporário
-  - Iluminação básica ✅ -> Por enquanto
+  - Iluminação básica ✅ -> alterada para a ilimunação com lanterna
   - Chão da cena ✅
   - Texturas ✅
-  - Spotlight
+  - Spotlight ✅
