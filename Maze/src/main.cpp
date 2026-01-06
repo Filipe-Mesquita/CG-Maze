@@ -994,7 +994,6 @@ void processInput(GLFWwindow *window)
     else
         stopFootsteps();
 
-
     bool lPressed = (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS); // Ativar/desativar o filtro
     if (lPressed && !lPressedLastFrame)
         fixY = !fixY;
