@@ -201,6 +201,7 @@ unsigned char *floorData;
 float ambientLightStrengh = 0.1f;
 float innerCutOff = 12.5f;
 float outerCutOff = 17.5f;
+bool flashlightMode = true;
 bool flashlightOn = true;
 static int gChoice = 2;         // 1 easy, 2 normal, 3 hard
 static bool gDrunkMode = false; // hard => true
@@ -209,18 +210,20 @@ void setEasyMode()
 {
     MAZE_W = 15;
     MAZE_H = 15;
+    flashlightMode = false;
 }
 
 void setNormalMode()
 {
     MAZE_W = 21;
     MAZE_H = 21;
+    flashlightMode = true;
 }
 
 void setHardMode()
 {
-    MAZE_W = 51;
-    MAZE_H = 51;
+    MAZE_W = 21;
+    MAZE_H = 21;
     // Colcocar depois o filtro de bebado, noite e uma lanterna
 }
 
@@ -570,6 +573,9 @@ int main()
         lightingShader.setVec3("lightDir", camera.Front);
         lightingShader.setVec3("viewPos", camera.Position);
 
+        // flashlight is available or not
+        lightingShader.setBool("flashlightMode", flashlightMode);
+
         // flashlight on/off
         lightingShader.setBool("flashlightOn", flashlightOn);
 
@@ -761,7 +767,7 @@ void generateFloor(int choice)
         size = 21.0f;
         break;
     case 3:
-        size = 51.0f;
+        size = 21.0f;
         break;
     default:
         size = 16.0f;
