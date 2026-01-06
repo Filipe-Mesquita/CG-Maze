@@ -947,6 +947,7 @@ void prepareTextures()
 void processInput(GLFWwindow *window)
 {
     static bool fPressedLastFrame = false;
+    static bool lPressedLastFrame = false;
 
     bool wantMove =
         glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
@@ -987,9 +988,11 @@ void processInput(GLFWwindow *window)
     else
         stopFootsteps();
 
-    // resto do teu input (inalterado)
-    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
+
+    bool lPressed = (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS); // Ativar/desativar o filtro
+    if (lPressed && !lPressedLastFrame)
         fixY = !fixY;
+    lPressedLastFrame = lPressed;
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         camera.ProcessKeyboard(UP, deltaTime, fixY);
