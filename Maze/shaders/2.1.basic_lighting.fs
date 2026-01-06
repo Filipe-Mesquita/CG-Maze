@@ -10,6 +10,7 @@ uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform vec3 viewPos;
 
+uniform bool flashlightMode;
 uniform bool flashlightOn;
 
 // Spotlight cone
@@ -26,44 +27,60 @@ uniform sampler2D texture1;
 void main()
 {
     vec3 texColor = texture(texture1, TexCoord).rgb;
+    vec3 norm = normalize(Normal);
 
-    // ─────────────── AMBIENT (muito fraco)
-    float ambientStrength = flashlightOn ? 0.12 : 0.02;
-    vec3 ambient = ambientStrength * lightColor * texColor;
+    // ─────────────────────────────
+    // MODO 1 — JOGO SEM LANTERNA
+    // ─────────────────────────────
+    if (!flashlightMode)
+    {
+        vec3 lightDir = normalize(vec3(-0.3, -1.0, -0.2)); // luz global
+        float diff = max(dot(norm, -lightDir), 0.0);
 
+        vec3 ambient = 0.25 * lightColor * texColor;
+        vec3 diffuse = diff * lightColor * texColor;
+
+        FragColor = vec4(ambient + diffuse, 1.0);
+        return;
+    }
+
+    // ─────────────────────────────
+    // MODO 2 — JOGO COM LANTERNA
+    // ─────────────────────────────
+
+    // Ambient base (sempre)
+    vec3 ambient = 0.12 * lightColor * texColor;
+
+    // Lanterna desligada
     if (!flashlightOn)
     {
         FragColor = vec4(ambient, 1.0);
         return;
     }
 
-    // ─────────────── NORMALS
-    vec3 norm = normalize(Normal);
+    // Lanterna ligada (spotlight)
     vec3 lightDirection = normalize(lightPos - FragPos);
-
-    // ─────────────── SPOTLIGHT INTENSITY
     float theta = dot(lightDirection, normalize(-lightDir));
 
-    float intensity = clamp((theta - outerCutOff) / (cutOff - outerCutOff), 0.0, 1.0);
+    float intensity = clamp(
+        (theta - outerCutOff) / (cutOff - outerCutOff),
+        0.0, 1.0
+    );
 
-    // ─────────────── DISTANCE ATTENUATION
     float distance = length(lightPos - FragPos);
-    float attenuation = 1.0 / (constant + linear * distance + quadratic * distance * distance);
+    float attenuation =
+        1.0 / (constant + linear * distance + quadratic * distance * distance);
 
-    // ─────────────── DIFFUSE
     float diff = max(dot(norm, lightDirection), 0.0);
     vec3 diffuse = diff * lightColor;
 
-    // ─────────────── SPECULAR (pedra → fraco)
-    float specularStrength = 0.08;
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDirection, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), 16.0);
-    vec3 specular = specularStrength * spec * lightColor;
+    vec3 specular = 0.08 * spec * lightColor;
 
-    // ─────────────── FINAL COLOR
-    vec3 lighting = (diffuse + specular) * intensity * attenuation;
+    vec3 lighting =
+        (diffuse + specular) * intensity * attenuation;
 
-    vec3 result = ambient + lighting * texColor;
-    FragColor = vec4(result, 1.0);
+    FragColor = vec4(ambient + lighting * texColor, 1.0);
 }
