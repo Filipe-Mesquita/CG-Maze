@@ -110,13 +110,12 @@ const float PLAYER_RADIUS = 0.10f;
 
 // Som
 //
-ALCdevice* alDevice = nullptr;
-ALCcontext* alContext = nullptr;
+ALCdevice *alDevice = nullptr;
+ALCcontext *alContext = nullptr;
 ALuint stepBuffer = 0;
 ALuint stepSource = 0;
 
 bool isStepPlaying = false;
-
 
 // camera
 Camera camera(glm::vec3(-1.5f, 0.5f, 1.0f));
@@ -187,6 +186,11 @@ char floor_texture_File[] = "./textures/floor_texture.png";
 unsigned int floorTexture;
 unsigned char *floorData;
 
+// Spotlight
+float ambientLightStrengh = 0.1f;
+float innerCutOff = 12.5f;
+float outerCutOff = 17.5f;
+bool flashlightOn = true;
 static int  gChoice = 2;          // 1 easy, 2 normal, 3 hard
 static bool gDrunkMode = false;   // hard => true
 
@@ -349,7 +353,7 @@ int main()
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     if (!initAudio())
-    std::cout << "Áudio não iniciado (continuo sem som)\n";
+        std::cout << "Áudio não iniciado (continuo sem som)\n";
 
     // build and compile our shader zprogram
     // ------------------------------------
@@ -374,16 +378,18 @@ int main()
         createSceneFBO(SCR_W, SCR_H);
         createFullScreenQuad();
     }
-        
+
     // Spawn automático na primeira célula de caminho (normalmente (1,1))
-    for (int z = 0; z < MAZE_H; z++) {
-        for (int x = 0; x < MAZE_W; x++) {
-            if (maze[z][x] == 0) {
+    for (int z = 0; z < MAZE_H; z++)
+    {
+        for (int x = 0; x < MAZE_W; x++)
+        {
+            if (maze[z][x] == 0)
+            {
                 camera.Position = glm::vec3(
                     1.0f * CELL_SIZE + 0.5f * CELL_SIZE,
                     0.5f,
-                    1.0f * CELL_SIZE + 0.5f * CELL_SIZE
-                );
+                    1.0f * CELL_SIZE + 0.5f * CELL_SIZE);
                 z = MAZE_H; // sair dos loops
                 break;
             }
@@ -491,7 +497,9 @@ int main()
 
         if (gDrunkMode) {
             glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
-        } else {
+        }
+        else
+        {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
 
@@ -508,8 +516,23 @@ int main()
         lightingShader.use();
         // lightingShader.setVec3("objectColor", 1.0f, 0.5f, 0.31f);
         lightingShader.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        lightingShader.setVec3("lightPos", lightPos);
+        lightingShader.setFloat("ambientS", ambientLightStrengh);
+
+        //flashlight attributes
+        lightingShader.setVec3("lightPos", camera.Position);
+        lightingShader.setVec3("lightDir", camera.Front);
         lightingShader.setVec3("viewPos", camera.Position);
+
+        // flashlight on/off
+        lightingShader.setBool("flashlightOn", flashlightOn);
+
+        // Light Falloff
+        lightingShader.setFloat("constant", 1.0f);
+        lightingShader.setFloat("linear", 0.09f);
+        lightingShader.setFloat("quadratic", 0.032f);
+
+        lightingShader.setFloat("cutOff", cos(glm::radians(innerCutOff)));
+        lightingShader.setFloat("outerCutOff", cos(glm::radians(outerCutOff)));
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)gWinW / (float)gWinH, 0.1f, 100.0f);
@@ -534,10 +557,9 @@ int main()
                     glm::mat4 model = glm::mat4(1.0f);
 
                     model = glm::translate(model, glm::vec3(
-                        (x + 0.5f) * CELL_SIZE,
-                        0.0f,
-                        (z + 0.5f) * CELL_SIZE
-                    ));
+                                                      (x + 0.5f) * CELL_SIZE,
+                                                      0.0f,
+                                                      (z + 0.5f) * CELL_SIZE));
 
                     lightingShader.setMat4("model", model);
                     glActiveTexture(GL_TEXTURE0);
@@ -560,17 +582,7 @@ int main()
 
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)floor_vertices.size());
 
-        // also draw the lamp object
-        lampShader.use();
-        lampShader.setMat4("projection", projection);
-        lampShader.setMat4("view", view);
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos);
-        model = glm::scale(model, glm::vec3(0.2f)); // a smaller cube
-        lampShader.setMat4("model", model);
-
-        glBindVertexArray(wall_VAO);
-        glDrawArrays(GL_TRIANGLES, 0, wall_vertices.size());
+        
 
         if (gDrunkMode)
         {
@@ -600,6 +612,8 @@ int main()
     // ------------------------------------------------------------------------
     glDeleteVertexArrays(1, &wall_VAO);
     glDeleteBuffers(1, &wall_VBO);
+    glDeleteVertexArrays(1, &floor_VAO);
+    glDeleteBuffers(1, &floor_VBO);
 
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
@@ -608,7 +622,7 @@ int main()
     return 0;
 }
 
-// Funções 
+// Funções
 //
 
 int loadMeshFromFile(char obj_file[], std::vector<float> &bufferData, std::vector<glm::vec3> &vertices, std::vector<glm::vec2> &uvs, std::vector<glm::vec3> &normals)
@@ -735,8 +749,7 @@ void generateFloor(int choice)
 
         {uMax, 0.0f},
         {0.0f, vMax},
-        {uMax, vMax}
-    };
+        {uMax, vMax}};
 
     // --------- NORMAIS (TODAS PARA CIMA) -------
     for (int i = 0; i < 6; i++)
@@ -888,12 +901,13 @@ void prepareTextures()
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
+    static bool fPressedLastFrame = false;
 
     bool wantMove =
-    glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
-    glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
-    glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
-    glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
+        glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS;
 
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
@@ -929,7 +943,7 @@ void processInput(GLFWwindow *window)
         stopFootsteps();
 
     // resto do teu input (inalterado)
-    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS)
         fixY = !fixY;
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
@@ -950,8 +964,13 @@ void processInput(GLFWwindow *window)
         moveCamera(3);
     if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
         moveCamera(4);
-}
 
+    // Flashlight
+    bool fPressed = (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS); // Ativar/desativar o filtro
+    if (fPressed && !fPressedLastFrame)
+        flashlightOn = !flashlightOn;
+    fPressedLastFrame = fPressed;
+}
 
 // glfw: whenever the window size changed (by OS or user resize) this callback function executes
 // ---------------------------------------------------------------------------------------------
@@ -1101,7 +1120,8 @@ void generateMaze()
 
 // Função de colisão
 //
-static inline float clampf(float v, float a, float b){ return (v < a) ? a : (v > b) ? b : v; }
+static inline float clampf(float v, float a, float b) { return (v < a) ? a : (v > b) ? b
+                                                                                     : v; }
 
 bool checkCollision(glm::vec3 pos)
 {
@@ -1152,14 +1172,15 @@ bool checkCollision(glm::vec3 pos)
     return false;
 }
 
-// Som    
+// Som
 // FUTURO: COLOCAR SOM DA LATERNA
 //
-bool loadWavToOpenAL(const char* filename, ALuint& outBuffer)
+bool loadWavToOpenAL(const char *filename, ALuint &outBuffer)
 {
     SF_INFO sfinfo;
-    SNDFILE* sndfile = sf_open(filename, SFM_READ, &sfinfo);
-    if (!sndfile) {
+    SNDFILE *sndfile = sf_open(filename, SFM_READ, &sfinfo);
+    if (!sndfile)
+    {
         std::cout << "Erro a abrir som: " << filename << "\n";
         return false;
     }
@@ -1169,9 +1190,12 @@ bool loadWavToOpenAL(const char* filename, ALuint& outBuffer)
     sf_close(sndfile);
 
     ALenum format;
-    if (sfinfo.channels == 1) format = AL_FORMAT_MONO16;
-    else if (sfinfo.channels == 2) format = AL_FORMAT_STEREO16;
-    else {
+    if (sfinfo.channels == 1)
+        format = AL_FORMAT_MONO16;
+    else if (sfinfo.channels == 2)
+        format = AL_FORMAT_STEREO16;
+    else
+    {
         std::cout << "Formato WAV não suportado (channels=" << sfinfo.channels << ")\n";
         return false;
     }
@@ -1186,13 +1210,15 @@ bool loadWavToOpenAL(const char* filename, ALuint& outBuffer)
 bool initAudio()
 {
     alDevice = alcOpenDevice(nullptr);
-    if (!alDevice) {
+    if (!alDevice)
+    {
         std::cout << "Falha a abrir OpenAL device\n";
         return false;
     }
 
     alContext = alcCreateContext(alDevice, nullptr);
-    if (!alContext || !alcMakeContextCurrent(alContext)) {
+    if (!alContext || !alcMakeContextCurrent(alContext))
+    {
         std::cout << "Falha a criar OpenAL context\n";
         return false;
     }
@@ -1202,28 +1228,33 @@ bool initAudio()
 
     alGenSources(1, &stepSource);
     alSourcei(stepSource, AL_BUFFER, stepBuffer);
-    alSourcef(stepSource, AL_GAIN, 1.0f);         // volume
-    alSourcef(stepSource, AL_PITCH, 1.0f);        // pitch
-    alSourcei(stepSource, AL_LOOPING, AL_TRUE);   // loop contínuo
+    alSourcef(stepSource, AL_GAIN, 1.0f);       // volume
+    alSourcef(stepSource, AL_PITCH, 1.0f);      // pitch
+    alSourcei(stepSource, AL_LOOPING, AL_TRUE); // loop contínuo
 
     return true;
 }
 
 void shutdownAudio()
 {
-    if (stepSource) alDeleteSources(1, &stepSource);
-    if (stepBuffer) alDeleteBuffers(1, &stepBuffer);
+    if (stepSource)
+        alDeleteSources(1, &stepSource);
+    if (stepBuffer)
+        alDeleteBuffers(1, &stepBuffer);
 
-    if (alContext) {
+    if (alContext)
+    {
         alcMakeContextCurrent(nullptr);
         alcDestroyContext(alContext);
     }
-    if (alDevice) alcCloseDevice(alDevice);
+    if (alDevice)
+        alcCloseDevice(alDevice);
 }
 
 void startFootsteps()
 {
-    if (!isStepPlaying) {
+    if (!isStepPlaying)
+    {
         alSourcePlay(stepSource);
         isStepPlaying = true;
     }
@@ -1231,7 +1262,8 @@ void startFootsteps()
 
 void stopFootsteps()
 {
-    if (isStepPlaying) {
+    if (isStepPlaying)
+    {
         alSourceStop(stepSource);
         isStepPlaying = false;
     }
@@ -1241,17 +1273,20 @@ void stopFootsteps()
 //
 void createSceneFBO(int w, int h)
 {
-    if (sceneFBO == 0) glGenFramebuffers(1, &sceneFBO);
+    if (sceneFBO == 0)
+        glGenFramebuffers(1, &sceneFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
 
-    if (sceneColorTex == 0) glGenTextures(1, &sceneColorTex);
+    if (sceneColorTex == 0)
+        glGenTextures(1, &sceneColorTex);
     glBindTexture(GL_TEXTURE_2D, sceneColorTex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorTex, 0);
 
-    if (sceneRBO == 0) glGenRenderbuffers(1, &sceneRBO);
+    if (sceneRBO == 0)
+        glGenRenderbuffers(1, &sceneRBO);
     glBindRenderbuffer(GL_RENDERBUFFER, sceneRBO);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, sceneRBO);
@@ -1266,14 +1301,13 @@ void createFullScreenQuad()
 {
     float quadVertices[] = {
         // pos      // uv
-        -1.f, -1.f,  0.f, 0.f,
-         1.f, -1.f,  1.f, 0.f,
-         1.f,  1.f,  1.f, 1.f,
+        -1.f, -1.f, 0.f, 0.f,
+        1.f, -1.f, 1.f, 0.f,
+        1.f, 1.f, 1.f, 1.f,
 
-        -1.f, -1.f,  0.f, 0.f,
-         1.f,  1.f,  1.f, 1.f,
-        -1.f,  1.f,  0.f, 1.f
-    };
+        -1.f, -1.f, 0.f, 0.f,
+        1.f, 1.f, 1.f, 1.f,
+        -1.f, 1.f, 0.f, 1.f};
 
     glGenVertexArrays(1, &quadVAO);
     glGenBuffers(1, &quadVBO);
@@ -1283,10 +1317,10 @@ void createFullScreenQuad()
     glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
 
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 
     glBindVertexArray(0);
 }
