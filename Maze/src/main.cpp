@@ -412,17 +412,7 @@ int main()
 
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)floor_vertices.size());
 
-        // also draw the lamp object
-        lampShader.use();
-        lampShader.setMat4("projection", projection);
-        lampShader.setMat4("view", view);
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, lightPos);
-        model = glm::scale(model, glm::vec3(0.2f)); // a smaller cube
-        lampShader.setMat4("model", model);
-
-        glBindVertexArray(wall_VAO);
-        glDrawArrays(GL_TRIANGLES, 0, wall_vertices.size());
+        
 
         if (drunkMode)
         {

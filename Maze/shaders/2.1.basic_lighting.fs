@@ -1,9 +1,9 @@
 #version 330 core
 out vec4 FragColor;
 
-in vec3 Normal;  
+in vec3 Normal;
 in vec3 FragPos;
-in vec2 TexCoord; 
+in vec2 TexCoord;
 
 uniform vec3 lightPos;
 uniform vec3 lightDir;
@@ -44,15 +44,11 @@ void main()
     // ─────────────── SPOTLIGHT INTENSITY
     float theta = dot(lightDirection, normalize(-lightDir));
 
-    float intensity = clamp(
-        (theta - outerCutOff) / (cutOff - outerCutOff),
-        0.0, 1.0
-    );
+    float intensity = clamp((theta - outerCutOff) / (cutOff - outerCutOff), 0.0, 1.0);
 
     // ─────────────── DISTANCE ATTENUATION
     float distance = length(lightPos - FragPos);
-    float attenuation = 1.0 / 
-        (constant + linear * distance + quadratic * distance * distance);
+    float attenuation = 1.0 / (constant + linear * distance + quadratic * distance * distance);
 
     // ─────────────── DIFFUSE
     float diff = max(dot(norm, lightDirection), 0.0);
@@ -66,10 +62,7 @@ void main()
     vec3 specular = specularStrength * spec * lightColor;
 
     // ─────────────── FINAL COLOR
-    vec3 lighting =
-        (diffuse + specular) *
-        intensity *
-        attenuation;
+    vec3 lighting = (diffuse + specular) * intensity * attenuation;
 
     vec3 result = ambient + lighting * texColor;
     FragColor = vec4(result, 1.0);
