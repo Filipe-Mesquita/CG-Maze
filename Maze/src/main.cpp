@@ -19,6 +19,45 @@
 #include <AL/alc.h>
 #include <sndfile.h>
 
+// ===================== UI 2D (MENU) =====================
+struct Rect { float x, y, w, h; }; // (0,0) topo-esquerda
+
+struct Button {
+    Rect r;
+    GLuint tex = 0;
+    bool contains(float mx, float my) const {
+        return mx >= r.x && mx <= (r.x + r.w) && my >= r.y && my <= (r.y + r.h);
+    }
+};
+
+static float gMouseX = 0.f, gMouseY = 0.f;
+static int   gWinW = 1280, gWinH = 720;
+
+static GLuint texBg = 0;
+static Button btnStart, btnExitMain;
+static Button btnEasy, btnNormal, btnHard, btnExitMode;
+
+static GLuint uiVAO = 0, uiVBO = 0;
+
+enum class GameState { MENU_MAIN, MENU_MODE, PLAYING, VICTORY };
+GameState state = GameState::MENU_MAIN;
+
+static GLuint texVictory = 0;
+static Button btnExitVictory;
+
+// protótipos UI (para poderes chamar no main)
+unsigned int LoadTextureRGBA(const char* path);
+void CreateUIQuad();
+void DrawRectUI(Shader& uiShader, const Rect& r, GLuint tex);
+glm::mat4 OrthoTopLeft(float w, float h);
+void BuildMenuLayout();
+
+// callbacks UI
+void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+
+// =========================================================
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
@@ -152,6 +191,9 @@ float ambientLightStrengh = 0.1f;
 float innerCutOff = 12.5f;
 float outerCutOff = 17.5f;
 bool flashlightOn = true;
+static int  gChoice = 2;          // 1 easy, 2 normal, 3 hard
+static bool gDrunkMode = false;   // hard => true
+
 
 void setEasyMode()
 {
@@ -172,35 +214,84 @@ void setHardMode()
     // Colcocar depois o filtro de bebado, noite e uma lanterna
 }
 
+static void DestroyDrunkResources()
+{
+    if (sceneFBO)      { glDeleteFramebuffers(1, &sceneFBO); sceneFBO = 0; }
+    if (sceneColorTex) { glDeleteTextures(1, &sceneColorTex); sceneColorTex = 0; }
+    if (sceneRBO)      { glDeleteRenderbuffers(1, &sceneRBO); sceneRBO = 0; }
+}
+
+static void RebuildFloor(int choice)
+{
+    // apagar VAO/VBO antigo
+    if (floor_VAO) { glDeleteVertexArrays(1, &floor_VAO); floor_VAO = 0; }
+    if (floor_VBO) { glDeleteBuffers(1, &floor_VBO); floor_VBO = 0; }
+
+    // limpar buffers/vetores para não irem acumulando
+    floor_vertices.clear();
+    floor_uvs.clear();
+    floor_normals.clear();
+    floor_bufferData.clear();
+
+    generateFloor(choice); // cria novo VAO/VBO com base no choice
+}
+
+static void SpawnCameraAtFirstPathCell()
+{
+    for (int z = 0; z < MAZE_H; z++) {
+        for (int x = 0; x < MAZE_W; x++) {
+            if (maze[z][x] == 0) {
+                camera.Position = glm::vec3(
+                    (x + 0.5f) * CELL_SIZE,
+                    0.5f,
+                    (z + 0.5f) * CELL_SIZE
+                );
+                return;
+            }
+        }
+    }
+}
+
+static void StartGame(int choice, GLFWwindow* window)
+{
+    gChoice = choice;
+
+    if (choice == 1) setEasyMode();
+    else if (choice == 2) setNormalMode();
+    else setHardMode();
+
+    // Maze novo com novo tamanho
+    maze.clear();
+    srand((unsigned)time(NULL));
+    generateMaze();
+
+    // Chão novo (tamanho depende do choice)
+    RebuildFloor(choice);
+
+    // Drunk-mode só no hard
+    bool wantDrunk = (choice == 3);
+    if (wantDrunk) {
+        // garante FBO com o tamanho actual
+        createSceneFBO(gWinW, gWinH);
+        if (quadVAO == 0) createFullScreenQuad();
+    } else {
+        DestroyDrunkResources();
+    }
+    gDrunkMode = wantDrunk;
+
+    // Spawn do jogador
+    SpawnCameraAtFirstPathCell();
+
+    // Preparar rato FPS
+    firstMouse = true;
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+    // Entrar no jogo
+    state = GameState::PLAYING;
+}
+
 int main()
 {
-    int choice;
-    do
-    {
-        std::cout << "Modo:" << std::endl;
-        std::cout << "1 - Fácil" << std::endl;
-        std::cout << "2 - Normal" << std::endl;
-        std::cout << "3 - Difícil" << std::endl;
-        std::cin >> choice;
-        if (choice < 1 || choice > 3)
-        {
-            std::cout << "Opção inválida. Tente novamente." << std::endl;
-        }
-    } while (choice < 1 || choice > 3);
-    switch (choice)
-    {
-    case 1:
-        setEasyMode();
-        break;
-    case 2:
-        setNormalMode();
-        break;
-    case 3:
-        setHardMode();
-        break;
-    }
-
-    bool drunkMode = (choice == 3);
 
     // glfw: initialize and configure
     // ------------------------------
@@ -234,6 +325,10 @@ int main()
 
     glfwMakeContextCurrent(window);
 
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetScrollCallback(window, scroll_callback);
+
     glfwShowWindow(window);
     glfwFocusWindow(window);
 
@@ -242,7 +337,6 @@ int main()
     // tell GLFW to capture our mouse
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
-    glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, scroll_callback);
 
     // glad: load all OpenGL function pointers
@@ -266,8 +360,12 @@ int main()
     Shader lightingShader("./shaders/2.1.basic_lighting.vs", "./shaders/2.1.basic_lighting.fs");
     Shader lampShader("./shaders/2.1.lamp.vs", "./shaders/2.1.lamp.fs");
 
-    if (transferDataToGPUMemory(choice) == -1)
+    if (transferDataToGPUMemory(gChoice) == -1)
         return -1;
+
+    setNormalMode();
+    gChoice = 2;
+    gDrunkMode = false;
 
     prepareTextures();
 
@@ -276,8 +374,7 @@ int main()
 
     Shader drunkShader("./shaders/postprocess.vs", "./shaders/drunk.fs");
 
-    if (drunkMode)
-    {
+    if (gDrunkMode) {
         createSceneFBO(SCR_W, SCR_H);
         createFullScreenQuad();
     }
@@ -299,10 +396,83 @@ int main()
         }
     }
 
+    Shader uiShader("./shaders/ui.vs", "./shaders/ui.fs");
+
+    texBg = LoadTextureRGBA("./textures/wallpaper.png");
+    btnStart.tex = LoadTextureRGBA("./textures/play.png");
+    btnExitMain.tex = LoadTextureRGBA("./textures/exit1.png");
+
+    btnEasy.tex = LoadTextureRGBA("./textures/easymode.png");
+    btnNormal.tex = LoadTextureRGBA("./textures/normalmode.png");
+    btnHard.tex = LoadTextureRGBA("./textures/hardmode.png");
+    btnExitMode.tex = LoadTextureRGBA("./textures/exit2.png");
+
+    texVictory = LoadTextureRGBA("./textures/winner.png");
+    btnExitVictory.tex = LoadTextureRGBA("./textures/exit2.png"); 
+
+    CreateUIQuad();
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glfwGetFramebufferSize(window, &gWinW, &gWinH);
+    BuildMenuLayout();
+
     // render loop
     // -----------
     while (!glfwWindowShouldClose(window))
     {
+
+        int newW, newH;
+        glfwGetFramebufferSize(window, &newW, &newH);
+        if(newW != gWinW || newH != gWinH){
+            gWinW = newW; gWinH = newH;
+            BuildMenuLayout();
+        }
+
+        glfwGetFramebufferSize(window, &gWinW, &gWinH);
+
+    if(state != GameState::PLAYING)
+    {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    glDisable(GL_DEPTH_TEST);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    uiShader.use();
+    uiShader.setMat4("uProj", OrthoTopLeft((float)gWinW, (float)gWinH));
+
+    // background full-screen
+    Rect bg = {0,0,(float)gWinW,(float)gWinH};
+    DrawRectUI(uiShader, bg, texBg);
+
+    // botões / ecrãs
+    if(state == GameState::MENU_MAIN){
+        DrawRectUI(uiShader, btnStart.r, btnStart.tex);
+        DrawRectUI(uiShader, btnExitMain.r, btnExitMain.tex);
+    }
+    else if(state == GameState::MENU_MODE){
+        DrawRectUI(uiShader, btnEasy.r, btnEasy.tex);
+        DrawRectUI(uiShader, btnNormal.r, btnNormal.tex);
+        DrawRectUI(uiShader, btnHard.r, btnHard.tex);
+        DrawRectUI(uiShader, btnExitMode.r, btnExitMode.tex);
+    }
+    else if(state == GameState::VICTORY){
+        // fundo é a imagem do WINNER
+        DrawRectUI(uiShader, bg, texVictory);
+        DrawRectUI(uiShader, btnExitVictory.r, btnExitVictory.tex);
+    }
+
+    glfwSwapBuffers(window);
+    glfwPollEvents();
+    continue; // não desenha o 3D
+    }
+    else
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        // aqui fazes o teu render 3D normal (labirinto)
+    }
+
         // per-frame time logic
         // --------------------
         float currentFrame = glfwGetTime();
@@ -318,14 +488,14 @@ int main()
         int px = (int)floor(camera.Position.x / CELL_SIZE);
         int pz = (int)floor(camera.Position.z / CELL_SIZE);
 
-        if (pz == MAZE_H - 2 && px == MAZE_W - 1)
-        {
-            std::cout << "GANHASTEEEEEEEEE CARALHOOOOOOO!" << std::endl;
-            glfwSetWindowShouldClose(window, true);
+        if (pz == MAZE_H - 2 && px == MAZE_W - 1) {
+            stopFootsteps();
+            state = GameState::VICTORY;
+            BuildMenuLayout();
+            continue; // vai já desenhar o UI no próximo ciclo
         }
 
-        if (drunkMode)
-        {
+        if (gDrunkMode) {
             glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
         }
         else
@@ -365,7 +535,7 @@ int main()
         lightingShader.setFloat("outerCutOff", cos(glm::radians(outerCutOff)));
 
         // view/projection transformations
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)mode->width / (float)mode->height, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)gWinW / (float)gWinH, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
         lightingShader.setMat4("projection", projection);
         lightingShader.setMat4("view", view);
@@ -414,7 +584,7 @@ int main()
 
         
 
-        if (drunkMode)
+        if (gDrunkMode)
         {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             glDisable(GL_DEPTH_TEST);
@@ -1153,4 +1323,175 @@ void createFullScreenQuad()
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 
     glBindVertexArray(0);
+}
+
+// Menu 2d 
+//
+unsigned int LoadTextureRGBA(const char* path)
+{
+    stbi_set_flip_vertically_on_load(true);
+    int w,h,n;
+    unsigned char* data = stbi_load(path, &w, &h, &n, 4); // força RGBA
+    if(!data){
+        std::cout << "Falha a carregar textura: " << path << "\n";
+        return 0;
+    }
+
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+    return tex;
+}
+
+void CreateUIQuad()
+{
+    // 2 triângulos, mas as posições vão ser actualizadas por drawRect (via uniforms ou VBO dinâmico).
+    // Mais simples: mandar um quad já em "pixel space" por VBO dinâmico.
+    glGenVertexArrays(1, &uiVAO);
+    glGenBuffers(1, &uiVBO);
+
+    glBindVertexArray(uiVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, uiVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float)*6*4, nullptr, GL_DYNAMIC_DRAW); // 6 vertices, (x,y,u,v)
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)0);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(2*sizeof(float)));
+
+    glBindVertexArray(0);
+}
+
+void DrawRectUI(Shader& uiShader, const Rect& r, GLuint tex)
+{
+    // Atenção: vamos usar (0,0) no topo-esquerda. A ortho vai tratar disso.
+    float x = r.x, y = r.y, w = r.w, h = r.h;
+
+    float verts[] = {
+        // x,y        u,v
+        x,   y+h,     0,0,
+        x,   y,       0,1,
+        x+w, y,       1,1,
+
+        x,   y+h,     0,0,
+        x+w, y,       1,1,
+        x+w, y+h,     1,0
+    };
+
+    glBindBuffer(GL_ARRAY_BUFFER, uiVBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    uiShader.setInt("uTex", 0);
+
+    glBindVertexArray(uiVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
+glm::mat4 OrthoTopLeft(float w, float h)
+{
+    // left=0 right=w, bottom=h top=0  -> (0,0) em cima
+    return glm::ortho(0.0f, w, h, 0.0f, -1.0f, 1.0f);
+}
+
+void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
+{
+    gMouseX = (float)xpos;
+    gMouseY = (float)ypos;
+
+    if (state != GameState::PLAYING)
+        return;
+
+    // --- a partir daqui é a tua lógica FPS (adaptada) ---
+    if (firstMouse) {
+        lastX = (float)xpos;
+        lastY = (float)ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = ((float)xpos - lastX) * mouse_sense;
+    float yoffset = (lastY - (float)ypos) * mouse_sense;
+
+    lastX = (float)xpos;
+    lastY = (float)ypos;
+
+    camera.ProcessMouseMovement(xoffset, yoffset);
+
+    // recentrar (FPS)
+    glfwSetCursorPos(window, centerX, centerY);
+    lastX = centerX;
+    lastY = centerY;
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS) return;
+
+    if (state == GameState::MENU_MAIN) {
+        if (btnStart.contains(gMouseX, gMouseY)) {
+            state = GameState::MENU_MODE;
+            BuildMenuLayout();
+        }
+        else if (btnExitMain.contains(gMouseX, gMouseY)) {
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+    else if (state == GameState::MENU_MODE) {
+        if (btnEasy.contains(gMouseX, gMouseY)) {
+            StartGame(1, window);
+        }
+        else if (btnNormal.contains(gMouseX, gMouseY)) {
+            StartGame(2, window);
+        }
+        else if (btnHard.contains(gMouseX, gMouseY)) {
+            StartGame(3, window);
+        }
+        else if (btnExitMode.contains(gMouseX, gMouseY)) {
+            state = GameState::MENU_MAIN;
+            BuildMenuLayout();
+        }
+    }
+    else if (state == GameState::VICTORY) {
+        if (btnExitVictory.contains(gMouseX, gMouseY)) {
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+}
+
+void BuildMenuLayout()
+{
+    float bw = gWinW * 0.35f;
+    float bh = gWinH * 0.12f;
+    float cx = (gWinW - bw) * 0.5f;
+
+    if(state == GameState::MENU_MAIN){
+        btnStart.r = { cx, gWinH*0.45f, bw, bh };
+        btnExitMain.r = { cx, gWinH*0.62f, bw, bh };
+    }
+    else if(state == GameState::MENU_MODE){
+        btnEasy.r   = { cx, gWinH*0.36f, bw, bh };
+        btnNormal.r = { cx, gWinH*0.50f, bw, bh };
+        btnHard.r   = { cx, gWinH*0.64f, bw, bh };
+        btnExitMode.r = { cx, gWinH*0.78f, bw, bh };
+    }
+    else if(state == GameState::VICTORY){
+        // botão exit em baixo ao centro
+        float bw2 = gWinW * 0.28f;
+        float bh2 = gWinH * 0.11f;
+        float cx2 = (gWinW - bw2) * 0.5f;
+        btnExitVictory.r = { cx2, gWinH*0.78f, bw2, bh2 };
+    }
 }
