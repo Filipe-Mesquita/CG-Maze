@@ -206,6 +206,9 @@ bool flashlightOn = true;
 static int gChoice = 2;         // 1 easy, 2 normal, 3 hard
 static bool gDrunkMode = false; // hard => true
 
+// Input do rato
+bool mouseInputChanged = true;
+
 void setEasyMode()
 {
     MAZE_W = 15;
@@ -479,6 +482,7 @@ int main()
 
         if (state != GameState::PLAYING)
         {
+            glfwSetCursorPosCallback(window, cursor_pos_callback);
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
             glDisable(GL_DEPTH_TEST);
@@ -517,7 +521,9 @@ int main()
         }
         else
         {
+            glfwSetCursorPosCallback(window, mouse_callback);
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            
             // aqui fazes o teu render 3D normal (labirinto)
         }
 
