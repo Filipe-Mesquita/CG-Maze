@@ -1,5 +1,27 @@
 # CG-Maze
 
+## Intruções prévias para compilar o projeto
+
+  Para compilar o projeto deve primeiro instalar as bibliotecas opanal e sndfile colocando o seguinte comando no terminal:
+
+  ### Ubuntu
+
+  ```bash
+  sudo apt install libopenal-dev libsndfile1-dev
+  ```
+
+  ### Fedora
+   ```bash
+  sudo dnf install openal-soft-devel libsndfile-devel
+  ```
+
+## Intruções para compilar e executar o projeto
+
+  Para compilar e executar o projeto basta estar na mesma diretoria que do ficheiro makeRun.sh e colocar o seguinte comando no terminal:
+   ```bash
+  ./makeRun.sh
+  ```
+
 ## Ideias
 
   - Colisões simples (grid-based) ✅
